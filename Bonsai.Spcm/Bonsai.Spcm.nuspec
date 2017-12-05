@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>$id$</id>
+    <version>$version$</version>
+    <title>$title$</title>
+    <authors>$author$</authors>
+    <owners>$author$</owners>
+    <licenseUrl>https://bitbucket.org/horizongir/bonsai.spcm/raw/a5f81c1a4fb1f172f50f3efdb277d2d8ecc239d4/LICENSE</licenseUrl>
+    <projectUrl>https://bitbucket.org/horizongir/bonsai.spcm</projectUrl>
+    <iconUrl>https://bitbucket.org/horizongir/bonsai/raw/7aacc64dc4647e57362ab310238591dc197fef0d/Resources/Bonsai.png</iconUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>$description$</description>
+    <copyright>$author$ © 2017</copyright>
+    <tags>Bonsai SPCM Data Acquisition</tags>
+  </metadata>
+</package>
