@@ -1,5 +1,5 @@
 .vs
 .suo
-packages
+packages/
 Bonsai.Spcm/bin
 Bonsai.Spcm/obj
