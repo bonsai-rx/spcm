@@ -118,13 +118,16 @@ namespace Bonsai.Spcm
             GetParam(Regs.SPC_CHCOUNT, out channelCount);
         }
 
-        public void WaitDma()
+        public bool WaitDma()
         {
             var errorCode = Drv.spcm_dwSetParam_i32(handle, Regs.SPC_M2CMD, Regs.M2CMD_DATA_WAITDMA);
-            if (errorCode != 0 && errorCode != Error.ERR_TIMEOUT)
+            if (errorCode == Error.ERR_TIMEOUT) return false;
+            if (errorCode != 0)
             {
                 ThrowSpcmException(handle);
             }
+
+            return true;
         }
 
         #region Spcm API
