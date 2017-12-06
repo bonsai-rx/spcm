@@ -30,8 +30,6 @@ namespace Bonsai.Spcm
 
         public int NotifySize { get; set; }
 
-        public bool Clone { get; set; }
-
         public override IObservable<Mat> Generate()
         {
             return Observable.Create<Mat>((observer, cancellationToken) =>
@@ -70,7 +68,7 @@ namespace Bonsai.Spcm
                             int dataAvailableOffset;
                             while (!cancellationToken.IsCancellationRequested)
                             {
-                                device.WaitDma();
+                                if (!device.WaitDma()) continue;
 
                                 int status;
                                 device.GetParam(Regs.SPC_M2STATUS, out status);
@@ -81,28 +79,15 @@ namespace Bonsai.Spcm
                                     throw new InvalidOperationException("Overrun!!");
                                 }
 
-
-                                if (dataAvailableBytes > dataNotify)
+                                if ((dataAvailableOffset + dataAvailableBytes) >= dataLength)
                                 {
-                                    if ((dataAvailableOffset + dataAvailableBytes) >= dataLength)
-                                    {
-                                        // process data only up to the end of the buffer
-                                        dataAvailableBytes = dataLength - dataAvailableOffset;
-                                    }
-
-                                    var dataAvailable = dataBuffer.GetSubRect(new Rect(dataAvailableOffset, 0, dataAvailableBytes, 1));
-                                    if (Clone)
-                                    {
-                                        dataAvailable = dataAvailable.Clone();
-                                        device.SetParam(Regs.SPC_DATA_AVAIL_CARD_LEN, dataAvailableBytes);
-                                        observer.OnNext(dataAvailable);
-                                    }
-                                    else
-                                    {
-                                        observer.OnNext(dataAvailable);
-                                        device.SetParam(Regs.SPC_DATA_AVAIL_CARD_LEN, dataAvailableBytes);
-                                    }
+                                    // process data only up to the end of the buffer
+                                    dataAvailableBytes = dataLength - dataAvailableOffset;
                                 }
+
+                                var dataAvailable = dataBuffer.GetSubRect(new Rect(dataAvailableOffset, 0, dataAvailableBytes, 1)).Clone();
+                                device.SetParam(Regs.SPC_DATA_AVAIL_CARD_LEN, dataAvailableBytes);
+                                observer.OnNext(dataAvailable);
                             }
                         }
                     }
