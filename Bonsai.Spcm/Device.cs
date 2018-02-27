@@ -19,6 +19,7 @@ namespace Bonsai.Spcm
         int bytesPerSample;
         int oversamplingFactor;
         int channelCount;
+        int cardType;
 
         public Device(string deviceName)
             : base(true)
@@ -35,6 +36,7 @@ namespace Bonsai.Spcm
 
         private void InitializeCardProperties()
         {
+            GetParam(Regs.SPC_PCITYP, out cardType);
             GetParam(Regs.SPC_MIINST_MINADCLOCK, out minSampleRate);
             GetParam(Regs.SPC_MIINST_MAXADCLOCK, out maxSampleRate);
             GetParam(Regs.SPC_MIINST_BYTESPERSAMPLE, out bytesPerSample);
@@ -44,6 +46,11 @@ namespace Bonsai.Spcm
         {
             Drv.spcm_vClose(handle);
             return true;
+        }
+
+        public int CardType
+        {
+            get { return cardType; }
         }
 
         public long SampleRate
@@ -98,6 +105,65 @@ namespace Bonsai.Spcm
             SetParam(Regs.SPC_TRIGGEROUT, triggerOut ? 1 : 0);
         }
 
+        public void SetupExternalTrigger(int externalMode, bool triggerTermination = false, int pulseWidth = 0, bool singleTrigger = true, int externalLine = 0)
+        {
+            // setup the external trigger mode
+            SetParam(Regs.SPC_TRIG_EXT0_MODE + externalLine, externalMode);
+            SetParam(Regs.SPC_TRIG_TERM, triggerTermination ? 1 : 0);
+
+            // we only use trigout on M2i cards as we otherwise would override the multi purpose i/o lines of M3i
+            if ((cardType & global::Spcm.CardType.TYP_SERIESMASK) == global::Spcm.CardType.TYP_M2ISERIES ||
+                (cardType & global::Spcm.CardType.TYP_SERIESMASK) == global::Spcm.CardType.TYP_M2IEXPSERIES)
+            {
+                SetParam(Regs.SPC_TRIG_OUTPUT, 0);
+                SetParam(Regs.SPC_TRIG_EXT0_PULSEWIDTH + externalLine, pulseWidth);
+            }
+
+            // when singleTrigger is set to true, no other trigger source is used
+            if (singleTrigger)
+            {
+                switch (externalLine)
+                {
+                    case 0: SetParam(Regs.SPC_TRIG_ORMASK, Regs.SPC_TMASK_EXT0); break;
+                    case 1: SetParam(Regs.SPC_TRIG_ORMASK, Regs.SPC_TMASK_EXT1); break;
+                    case 2: SetParam(Regs.SPC_TRIG_ORMASK, Regs.SPC_TMASK_EXT2); break;
+                }
+
+                SetParam(Regs.SPC_TRIG_ANDMASK, 0);
+                SetParam(Regs.SPC_TRIG_CH_ORMASK0, 0);
+                SetParam(Regs.SPC_TRIG_CH_ORMASK1, 0);
+                SetParam(Regs.SPC_TRIG_CH_ANDMASK0, 0);
+                SetParam(Regs.SPC_TRIG_CH_ANDMASK1, 0);
+            }
+
+            // M3i cards need trigger level to be programmed for Ext0 = analog trigger
+            if ((cardType & global::Spcm.CardType.TYP_SERIESMASK) == global::Spcm.CardType.TYP_M3ISERIES ||
+                (cardType & global::Spcm.CardType.TYP_SERIESMASK) == global::Spcm.CardType.TYP_M3IEXPSERIES)
+            {
+                if (externalLine == 0)
+                {
+                    SetParam(Regs.SPC_TRIG_EXT0_LEVEL0, 1500); // 1500 mV
+                    SetParam(Regs.SPC_TRIG_EXT0_LEVEL1, 800); // 800 mV (rearm)
+                }
+            }
+            // M4i/M4x cards need trigger level to be programmed for Ext0 or Ext1
+            else if ((cardType & global::Spcm.CardType.TYP_SERIESMASK) == global::Spcm.CardType.TYP_M4IEXPSERIES ||
+                     (cardType & global::Spcm.CardType.TYP_SERIESMASK) == global::Spcm.CardType.TYP_M4XEXPSERIES)
+            {
+                if (externalLine == 0)
+                {
+                    SetParam(Regs.SPC_TRIG_EXT0_LEVEL0, 1500); // 1500 mV
+                    SetParam(Regs.SPC_TRIG_EXT0_LEVEL1, 800); // 800 mV (rearm)
+                    SetParam(Regs.SPC_TRIG_EXT0_ACDC, 0); // DC coupling
+                }
+                else if (externalLine == 1)
+                {
+                    SetParam(Regs.SPC_TRIG_EXT1_LEVEL0, 1500); // 1500 mV
+                    SetParam(Regs.SPC_TRIG_EXT1_ACDC, 0); // DC coupling
+                }
+            }
+        }
+
         public void SetupRecordFifoSingle(int channelMask, long preTriggerSamples, long segmentSize = 1024, long loops = 0)
         {
             if (segmentSize < 1)
@@ -110,6 +176,26 @@ namespace Bonsai.Spcm
             SetParam(Regs.SPC_CHENABLE, channelMask);
             SetParam(Regs.SPC_PRETRIGGER, preTriggerSamples);
             SetParam(Regs.SPC_SEGMENTSIZE, segmentSize);
+            SetParam(Regs.SPC_LOOPS, loops);
+
+            // store some information in the structure
+            memorySize = 0;
+            enabledChannels = channelMask;
+            GetParam(Regs.SPC_CHCOUNT, out channelCount);
+        }
+
+        public void SetupRecordFifoMulti(int channelMask, long segmentSize = 1024, long postTriggerSamples = 512, long loops = 0)
+        {
+            if (segmentSize < 1)
+            {
+                throw new ArgumentOutOfRangeException("segmentSize");
+            }
+
+            // setup the mode
+            SetParam(Regs.SPC_CARDMODE, Regs.SPC_REC_FIFO_MULTI);
+            SetParam(Regs.SPC_CHENABLE, channelMask);
+            SetParam(Regs.SPC_SEGMENTSIZE, segmentSize);
+            SetParam(Regs.SPC_POSTTRIGGER, postTriggerSamples);
             SetParam(Regs.SPC_LOOPS, loops);
 
             // store some information in the structure
