@@ -199,6 +199,60 @@ namespace Bonsai.Spcm
             }
         }
 
+        public void SetupChannelTrigger(
+            int channel,
+            int triggerMode,
+            int triggerLevel0 = 0,
+            int triggerLevel1 = 0,
+            int pulseWidth = 0,
+            bool triggerOut = false,
+            bool singleTrigger = true)
+        {
+            if ((channel < 0) || (channel >= maxChannels))
+            {
+                throw new ArgumentOutOfRangeException("channel");
+            }
+
+            SetParam(Regs.SPC_TRIG_CH0_MODE + channel, triggerMode);
+            SetParam(Regs.SPC_TRIG_CH0_PULSEWIDTH + channel, pulseWidth);
+
+            if (cardFunction == CardFunction.AnalogIn)
+            {
+                SetParam(Regs.SPC_TRIG_CH0_LEVEL0 + channel, triggerLevel0);
+                SetParam(Regs.SPC_TRIG_CH0_LEVEL1 + channel, triggerLevel1);
+            }
+
+            // we only use trigout on M2i cards as we otherwise would override the multi purpose i/o lines of M3i
+            if ((cardType & global::Spcm.CardType.TYP_SERIESMASK) == global::Spcm.CardType.TYP_M2ISERIES ||
+                (cardType & global::Spcm.CardType.TYP_SERIESMASK) == global::Spcm.CardType.TYP_M2IEXPSERIES)
+            {
+                SetParam(Regs.SPC_TRIG_OUTPUT, triggerOut ? 1 : 0);
+            }
+
+            SetParam(Regs.SPC_TRIG_TERM, 0);
+
+            // when singleTrigger is set to true, no other trigger source is used
+            if (singleTrigger)
+            {
+                SetParam(Regs.SPC_TRIG_ORMASK, 0);
+                SetParam(Regs.SPC_TRIG_ANDMASK, 0);
+                SetParam(Regs.SPC_TRIG_CH_ORMASK1, 0);
+                SetParam(Regs.SPC_TRIG_CH_ANDMASK1, 0);
+
+                // some cards need the and mask to use on pulsewidth mode -> to be sure we set the AND mask for all pulsewidth cards
+                if ((triggerMode & Regs.SPC_TM_PW_GREATER) != 0 || (triggerMode & Regs.SPC_TM_PW_SMALLER) != 0)
+                {
+                    SetParam(Regs.SPC_TRIG_CH_ORMASK0, 0);
+                    SetParam(Regs.SPC_TRIG_CH_ANDMASK0, 1 << channel);
+                }
+                else
+                {
+                    SetParam(Regs.SPC_TRIG_CH_ORMASK0, 1 << channel);
+                    SetParam(Regs.SPC_TRIG_CH_ANDMASK0, 0);
+                }
+            }
+        }
+
         public void SetupRecordFifoSingle(int channelMask, long preTriggerSamples, long segmentSize = 1024, long loops = 0)
         {
             if (segmentSize < 1)
