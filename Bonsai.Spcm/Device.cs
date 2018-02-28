@@ -11,15 +11,17 @@ namespace Bonsai.Spcm
 {
     public class Device : SafeHandleZeroOrMinusOneIsInvalid
     {
-        long memorySize;
         long sampleRate;
         long minSampleRate;
         long maxSampleRate;
         long enabledChannels;
+        int moduleCount;
+        int maxChannels;
         int bytesPerSample;
         int oversamplingFactor;
         int channelCount;
         int cardType;
+        CardFunction cardFunction;
 
         public Device(string deviceName)
             : base(true)
@@ -39,7 +41,20 @@ namespace Bonsai.Spcm
             GetParam(Regs.SPC_PCITYP, out cardType);
             GetParam(Regs.SPC_MIINST_MINADCLOCK, out minSampleRate);
             GetParam(Regs.SPC_MIINST_MAXADCLOCK, out maxSampleRate);
+            GetParam(Regs.SPC_MIINST_MODULES, out moduleCount);
+            GetParam(Regs.SPC_MIINST_CHPERMODULE, out maxChannels);
             GetParam(Regs.SPC_MIINST_BYTESPERSAMPLE, out bytesPerSample);
+
+            int fncType;
+            GetParam(Regs.SPC_FNCTYPE, out fncType);
+            switch (fncType)
+            {
+                case Regs.SPCM_TYPE_AI: cardFunction = CardFunction.AnalogIn; break;
+                case Regs.SPCM_TYPE_AO: cardFunction = CardFunction.AnalogOut; break;
+                case Regs.SPCM_TYPE_DI: cardFunction = CardFunction.DigitalIn; break;
+                case Regs.SPCM_TYPE_DO: cardFunction = CardFunction.DigitalOut; break;
+                case Regs.SPCM_TYPE_DIO: cardFunction = CardFunction.DigitalIO; break;
+            }
         }
 
         protected override bool ReleaseHandle()
@@ -51,6 +66,11 @@ namespace Bonsai.Spcm
         public int CardType
         {
             get { return cardType; }
+        }
+
+        public CardFunction CardFunction
+        {
+            get { return cardFunction; }
         }
 
         public long SampleRate
@@ -66,6 +86,21 @@ namespace Bonsai.Spcm
         public long MaxSampleRate
         {
             get { return maxSampleRate; }
+        }
+
+        public int ModuleCount
+        {
+            get { return moduleCount; }
+        }
+
+        public int MaxChannels
+        {
+            get { return maxChannels; }
+        }
+
+        public int BytesPerSample
+        {
+            get { return bytesPerSample; }
         }
 
         public long EnabledChannels
@@ -179,7 +214,6 @@ namespace Bonsai.Spcm
             SetParam(Regs.SPC_LOOPS, loops);
 
             // store some information in the structure
-            memorySize = 0;
             enabledChannels = channelMask;
             GetParam(Regs.SPC_CHCOUNT, out channelCount);
         }
@@ -199,7 +233,6 @@ namespace Bonsai.Spcm
             SetParam(Regs.SPC_LOOPS, loops);
 
             // store some information in the structure
-            memorySize = 0;
             enabledChannels = channelMask;
             GetParam(Regs.SPC_CHCOUNT, out channelCount);
         }
